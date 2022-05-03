@@ -1,14 +1,15 @@
-package com.kawahedukasi.user.services;
+package com.kawahedukasi.kong.services;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.kawahedukasi.user.models.Consumer;
-import com.kawahedukasi.user.models.Credential;
-import com.kawahedukasi.user.models.Response;
-import com.kawahedukasi.user.models.Token;
+import com.kawahedukasi.kong.models.Consumer;
+import com.kawahedukasi.kong.models.Credential;
+import com.kawahedukasi.kong.models.Response;
+import com.kawahedukasi.kong.models.Token;
 import io.quarkus.runtime.StartupEvent;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPatch;
 import org.apache.http.client.methods.HttpPost;
@@ -261,6 +262,16 @@ public class KongService {
             consumer.id = "1";
             consumer.message = "";
             return consumer;
+        }
+    }
+
+    public void destroyConsumer(String username){
+        try{
+            HttpClient httpClient = httpClientBuilder.build();
+            HttpDelete httpDelete = new HttpDelete(kongAdminUrl+"/consumers/"+username);
+            HttpResponse httpResponse = httpClient.execute(httpDelete);
+        } catch (Exception e){
+            LOGGER.error(e.getMessage());
         }
     }
 
