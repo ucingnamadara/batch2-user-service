@@ -47,7 +47,7 @@ public class UserService {
             Map<String,Object> map = om.convertValue(param, Map.class);
             String loginName = (String) map.getOrDefault("loginName", "");
 
-            User user = User.find("loginName", loginName).firstResult();
+            User user = User.find("login_name", loginName).firstResult();
             if(user == null){
                 return new SimpleResponse(HttpConstant.VALIDATION_CODE, "User tidak ditemukan", new String());
             }
@@ -269,6 +269,25 @@ public class UserService {
         } catch (Exception e){
             LOGGER.error(e.getMessage());
             return new SimpleResponse(HttpConstant.FAILED_CODE, e.getMessage(), new String());
+        }
+    }
+
+    public SimpleResponse verifyEmail(String loginName){
+        try {
+            User user  = User.find("login_name", loginName).firstResult();
+            if (user==null){
+                return new SimpleResponse(HttpConstant.VALIDATION_CODE, "User tidak ditemukan", new String());
+            }
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("user", user);
+            
+            // Kirim email sebagai message dengan kafka untuk notification-ms(?)
+
+            return new SimpleResponse(HttpConstant.SUCCESS_CODE, HttpConstant.SUCCESS, response);
+        } catch (Exception e){
+            LOGGER.error(e.getMessage());
+            return new SimpleResponse(HttpConstant.FAILED_CODE, HttpConstant.FAILED, new String());
         }
     }
 }
