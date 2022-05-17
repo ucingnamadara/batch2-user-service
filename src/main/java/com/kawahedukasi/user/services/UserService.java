@@ -13,12 +13,16 @@ import com.kawahedukasi.user.models.UserAddress;
 import com.kawahedukasi.user.utils.DateUtil;
 import com.kawahedukasi.user.utils.SimpleResponse;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.eclipse.microprofile.reactive.messaging.Outgoing;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import javax.transaction.Transactional;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.text.SimpleDateFormat;
 import java.util.HashMap;
 import java.util.List;
@@ -269,25 +273,6 @@ public class UserService {
         } catch (Exception e){
             LOGGER.error(e.getMessage());
             return new SimpleResponse(HttpConstant.FAILED_CODE, e.getMessage(), new String());
-        }
-    }
-
-    public SimpleResponse verifyEmail(String loginName){
-        try {
-            User user  = User.find("login_name", loginName).firstResult();
-            if (user==null){
-                return new SimpleResponse(HttpConstant.VALIDATION_CODE, "User tidak ditemukan", new String());
-            }
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("user", user);
-            
-            // Kirim email sebagai message dengan kafka untuk notification-ms(?)
-
-            return new SimpleResponse(HttpConstant.SUCCESS_CODE, HttpConstant.SUCCESS, response);
-        } catch (Exception e){
-            LOGGER.error(e.getMessage());
-            return new SimpleResponse(HttpConstant.FAILED_CODE, HttpConstant.FAILED, new String());
         }
     }
 }
