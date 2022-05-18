@@ -14,7 +14,7 @@ import com.kawahedukasi.user.services.UserService;
 import com.kawahedukasi.user.services.VerifyEmailService;
 import com.kawahedukasi.user.utils.SimpleResponse;
 
-@Path("/api/v1/user")
+@Path("/api/v1/user/{login_name}")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 @Tag(name = "User Management")
@@ -23,13 +23,13 @@ public class VerifyEmailController {
     VerifyEmailService verifyEmailService;
     
     @GET
-    @Path("/{login_name}/verify")
+    @Path("/verifyMe")
     public SimpleResponse sendVerification(@PathParam("login_name")String login_name){
         return verifyEmailService.sendVerification(login_name);
     }
 
     @GET
-    @Path("/{login_name}/verify")
+    @Path("/acceptVerification")
     public SimpleResponse acceptVerification(@PathParam("login_name")String login_name, @QueryParam("otpCode") String otpCode){
         return verifyEmailService.acceptVerification(login_name, otpCode);
     }

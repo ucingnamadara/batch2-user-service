@@ -45,7 +45,6 @@ public class VerifyEmailService {
             }
             else {
                 if (!user.getVerifiedStatus().equalsIgnoreCase("verified")){
-                    response = loginName + " unverified";
                     String userEmail = user.getEmail();
                     otpCode = OtpService.generateOtp();
                     
@@ -72,10 +71,12 @@ public class VerifyEmailService {
                     customId.put("accessRole", access.getAccessRole());
 
                     Consumer consumer = kongService.updateConsumer(user.getLoginName(), om.writeValueAsString(customId));
+
+                    response = "verification sent";
                 }
                     
                 else {
-                    response = user.getLoginName() + " verified";
+                    response = "verification wasn't sent";
                 }
             }
             
@@ -96,8 +97,8 @@ public class VerifyEmailService {
                 return new SimpleResponse(HttpConstant.VALIDATION_CODE, "User tidak ditemukan", new String());
             }
             else {
-                if (!user.getVerifiedStatusId().toString().equalsIgnoreCase(otpCode)){
-                    response = loginName + " verified";
+                if (user.getVerifiedStatusId().toString().equalsIgnoreCase(otpCode)){
+                    response = "verification success";
                     
                     ObjectMapper om = new ObjectMapper();
                     om.registerModule(new JavaTimeModule());
@@ -125,7 +126,7 @@ public class VerifyEmailService {
                 }
                     
                 else {
-                    response = user.getLoginName() + " unverified";
+                    response = "verification failed";
                 }
             }
             
