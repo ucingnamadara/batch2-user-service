@@ -15,11 +15,18 @@ import com.kawahedukasi.kong.services.KongService;
 import com.kawahedukasi.user.constants.HttpConstant;
 import com.kawahedukasi.user.models.AccessManagement;
 import com.kawahedukasi.user.models.User;
+import com.kawahedukasi.user.utils.EmailUtil;
 import com.kawahedukasi.user.utils.SimpleResponse;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.eclipse.microprofile.reactive.messaging.Channel;
+import org.eclipse.microprofile.reactive.messaging.Emitter;
+import org.eclipse.microprofile.reactive.messaging.Outgoing;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.smallrye.reactive.messaging.annotations.Merge;
+import io.smallrye.reactive.messaging.annotations.Merge.Mode;
 
 @ApplicationScoped
 public class VerifyEmailService {
@@ -34,7 +41,12 @@ public class VerifyEmailService {
     @Inject
     KongService kongService;
 
+    @Inject
+    @Channel("send-email-html")
+    Emitter<String> stringEmitter;
+
     @Transactional
+    @Merge(Merge.Mode.MERGE)
     public SimpleResponse sendVerification(String loginName){
         String response = "";
         Long otpCode = 0L;
@@ -71,6 +83,11 @@ public class VerifyEmailService {
                     customId.put("accessRole", access.getAccessRole());
 
                     Consumer consumer = kongService.updateConsumer(user.getLoginName(), om.writeValueAsString(customId));
+                    
+                    String message = om.writeValueAsString(
+                        EmailUtil.verifyEmailMessage(loginName, otpCode.toString(), userEmail));
+
+                    stringEmitter.send(message);
 
                     response = "verification sent";
                 }
@@ -83,8 +100,7 @@ public class VerifyEmailService {
             return new SimpleResponse(HttpConstant.SUCCESS_CODE, HttpConstant.SUCCESS, response);
         } catch (Exception e){
             LOGGER.error(e.getMessage());
-            // return new SimpleResponse(HttpConstant.FAILED_CODE, HttpConstant.FAILED, new String());
-            return new SimpleResponse(HttpConstant.FAILED_CODE, HttpConstant.FAILED, e);
+            return new SimpleResponse(HttpConstant.FAILED_CODE, HttpConstant.FAILED, new String());
         }
     }
 
