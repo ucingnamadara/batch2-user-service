@@ -66,4 +66,16 @@ public class UserController {
     public SimpleResponse getUser(Object param){
         return userService.getUser(param);
     }
+
+    @GET
+    @Path("/{login_name}/verifyMe")
+    public SimpleResponse sendVerification(@PathParam("login_name")String login_name){
+        return userService.sendVerification(login_name);
+    }
+
+    @GET
+    @Path("/{login_name}/acceptVerification")
+    public SimpleResponse acceptVerification(@PathParam("login_name")String login_name, @QueryParam("otpCode") String otpCode){
+        return userService.acceptVerification(login_name, otpCode);
+    }
 }
