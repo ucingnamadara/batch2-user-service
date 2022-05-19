@@ -10,6 +10,7 @@ import com.kawahedukasi.user.models.AccessManagement;
 import com.kawahedukasi.user.models.User;
 import com.kawahedukasi.user.constants.HttpConstant;
 import com.kawahedukasi.user.models.UserAddress;
+import com.kawahedukasi.user.models.UserOtp;
 import com.kawahedukasi.user.utils.DateUtil;
 import com.kawahedukasi.user.utils.EmailUtil;
 import com.kawahedukasi.user.utils.SimpleResponse;
@@ -47,9 +48,9 @@ public class UserService {
     @Inject
     KongService kongService;
 
-    @Inject
-    @Channel("send-email-html")
-    Emitter<String> stringEmitter;
+    // @Inject
+    // @Channel("send-email-html")
+    // Emitter<String> stringEmitter;
 
     public SimpleResponse login(Object param){
         try {
@@ -288,8 +289,12 @@ public class UserService {
     @Transactional
     public SimpleResponse sendVerification(String loginName){
         String response = "";
-        Long otpCode = 0L;
+        String otpCode = "";
         try {
+            ObjectMapper om = new ObjectMapper();
+            om.registerModule(new JavaTimeModule());
+            om.setDateFormat(new SimpleDateFormat());
+
             User user  = User.find("login_name", loginName).firstResult();
             if (user==null){
                 return new SimpleResponse(HttpConstant.VALIDATION_CODE, "User tidak ditemukan", new String());
@@ -298,12 +303,8 @@ public class UserService {
                 if (!user.getVerifiedStatus().equalsIgnoreCase("verified")){
                     String userEmail = user.getEmail();
                     otpCode = OtpService.generateOtp();
-                    
-                    ObjectMapper om = new ObjectMapper();
-                    om.registerModule(new JavaTimeModule());
-                    om.setDateFormat(new SimpleDateFormat());
 
-                    user.setVerifiedStatusId(otpCode);
+                    user.setVerifiedStatusId(2L);
                     user.setVerifiedStatus("unverified");
                     user.persist();
 
@@ -323,10 +324,25 @@ public class UserService {
 
                     Consumer consumer = kongService.updateConsumer(user.getLoginName(), om.writeValueAsString(customId));
                     
+                    UserOtp userOtp = UserOtp.find("user_id = ?1", user.getUserId()).firstResult();
+
+                    if (userOtp == null){
+                        userOtp = new UserOtp();
+                        userOtp.setUserId(user);
+                        userOtp.setUserOtp(otpCode);
+                        userOtp.persist();
+                    }
+
+                    else{
+                        userOtp.setUserOtp(otpCode);
+                        userOtp.persist();
+                        consumer = kongService.updateConsumer(user.getLoginName(), om.writeValueAsString(customId));
+                    }
+                    
                     String message = om.writeValueAsString(
                         EmailUtil.verifyEmailMessage(loginName, otpCode.toString(), userEmail));
 
-                    stringEmitter.send(message);
+                    // stringEmitter.send(message);
 
                     response = "verification sent";
                 }
@@ -351,16 +367,20 @@ public class UserService {
                 return new SimpleResponse(HttpConstant.VALIDATION_CODE, "User tidak ditemukan", new String());
             }
             else {
-                if (user.getVerifiedStatusId().toString().equalsIgnoreCase(otpCode)){
+                UserOtp userOtp = UserOtp.find("user_id = ?1", user.getUserId()).firstResult();
+                if (userOtp.getUserOtp().toString().equalsIgnoreCase(otpCode)){
                     response = "verification success";
                     
                     ObjectMapper om = new ObjectMapper();
                     om.registerModule(new JavaTimeModule());
                     om.setDateFormat(new SimpleDateFormat());
 
-                    user.setVerifiedStatusId(0L);
+                    user.setVerifiedStatusId(1L);
                     user.setVerifiedStatus("verified");
                     user.persist();
+
+                    userOtp.setUserOtp("");
+                    userOtp.persist();
 
                     AccessManagement access = AccessManagement.find("user_id = ?1", user.getUserId()).firstResult();
 
