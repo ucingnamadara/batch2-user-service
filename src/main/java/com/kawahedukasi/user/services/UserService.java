@@ -30,6 +30,7 @@ import javax.transaction.Transactional;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -368,9 +369,13 @@ public class UserService {
             }
             else {
                 UserOtp userOtp = UserOtp.find("user_id = ?1", user.getUserId()).firstResult();
-                if (userOtp.getUserOtp().toString().equalsIgnoreCase(otpCode)){
+                LocalDateTime updatedDateTime = userOtp.getUpdatedDateTime();
+                LocalDateTime currentDateTime = LocalDateTime.now();
+                LocalDateTime expiredDateTime = updatedDateTime.plusHours(24);
+
+                if ((userOtp.getUserOtp().toString().equalsIgnoreCase(otpCode)) & currentDateTime.isBefore(expiredDateTime)){
                     response = "verification success";
-                    
+
                     ObjectMapper om = new ObjectMapper();
                     om.registerModule(new JavaTimeModule());
                     om.setDateFormat(new SimpleDateFormat());
