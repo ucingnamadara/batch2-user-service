@@ -10,16 +10,27 @@ import com.kawahedukasi.user.models.AccessManagement;
 import com.kawahedukasi.user.models.User;
 import com.kawahedukasi.user.constants.HttpConstant;
 import com.kawahedukasi.user.models.UserAddress;
+import com.kawahedukasi.user.models.UserOtp;
 import com.kawahedukasi.user.utils.DateUtil;
+import com.kawahedukasi.user.utils.EmailUtil;
 import com.kawahedukasi.user.utils.SimpleResponse;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.eclipse.microprofile.reactive.messaging.Channel;
+import org.eclipse.microprofile.reactive.messaging.Emitter;
+import org.eclipse.microprofile.reactive.messaging.Outgoing;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.smallrye.reactive.messaging.annotations.Merge;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import javax.transaction.Transactional;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +49,10 @@ public class UserService {
     @Inject
     KongService kongService;
 
+    @Inject
+    @Channel("send-email-html")
+    Emitter<String> stringEmitter;
+
     public SimpleResponse login(Object param){
         try {
             ObjectMapper om = new ObjectMapper();
@@ -47,7 +62,7 @@ public class UserService {
             Map<String,Object> map = om.convertValue(param, Map.class);
             String loginName = (String) map.getOrDefault("loginName", "");
 
-            User user = User.find("loginName", loginName).firstResult();
+            User user = User.find("login_name", loginName).firstResult();
             if(user == null){
                 return new SimpleResponse(HttpConstant.VALIDATION_CODE, "User tidak ditemukan", new String());
             }
@@ -270,5 +285,139 @@ public class UserService {
             LOGGER.error(e.getMessage());
             return new SimpleResponse(HttpConstant.FAILED_CODE, e.getMessage(), new String());
         }
+    }
+
+    @Transactional
+    public SimpleResponse verifyUser(String loginName){
+        String response = "";
+        String otpCode = "";
+        try {
+            ObjectMapper om = new ObjectMapper();
+            om.registerModule(new JavaTimeModule());
+            om.setDateFormat(new SimpleDateFormat());
+
+            User user  = User.find("login_name", loginName).firstResult();
+            if (user==null){
+                return new SimpleResponse(HttpConstant.VALIDATION_CODE, "User tidak ditemukan", new String());
+            }
+            else {
+                if (!user.getVerifiedStatus().equalsIgnoreCase("verified")){
+                    String userEmail = user.getEmail();
+                    otpCode = OtpService.generateOtp();
+
+                    user.setVerifiedStatusId(2L);
+                    user.setVerifiedStatus("unverified");
+                    user.persist();
+
+                    AccessManagement access = AccessManagement.find("user_id = ?1", user.getUserId()).firstResult();
+
+                    Map<String, Object> customId = new HashMap<>();
+                    customId.put("loginName", user.getLoginName());
+                    customId.put("fullName", user.getFullName());
+                    customId.put("email", user.getEmail());
+                    customId.put("phoneNumber", user.getPhoneNumber());
+                    customId.put("userCode", user.getUserCode());
+                    customId.put("userId", user.getUserId());
+                    customId.put("role", access.getRole());
+                    customId.put("roleId", access.getRoleId());
+                    customId.put("access", access.getAccess());
+                    customId.put("accessRole", access.getAccessRole());
+
+                    Consumer consumer = kongService.updateConsumer(user.getLoginName(), om.writeValueAsString(customId));
+                    
+                    UserOtp userOtp = UserOtp.find("user_id = ?1", user.getUserId()).firstResult();
+
+                    if (userOtp == null){
+                        userOtp = new UserOtp();
+                        userOtp.setUserId(user);
+                        userOtp.setUserOtp(otpCode);
+                        userOtp.persist();
+                    }
+
+                    else{
+                        userOtp.setUserOtp(otpCode);
+                        userOtp.persist();
+                        consumer = kongService.updateConsumer(user.getLoginName(), om.writeValueAsString(customId));
+                    }
+                    
+                    String message = om.writeValueAsString(
+                        EmailUtil.verifyEmailMessage(loginName, otpCode.toString(), userEmail));
+                    
+                    sendVerification(message);
+
+                    response = "verification sent";
+                }
+                else {
+                    response = "verification wasn't sent";
+                }
+            }
+            
+            return new SimpleResponse(HttpConstant.SUCCESS_CODE, HttpConstant.SUCCESS, response);
+        } catch (Exception e){
+            LOGGER.error(e.getMessage());
+            return new SimpleResponse(HttpConstant.FAILED_CODE, HttpConstant.FAILED, new String());
+        }
+    }
+
+    @Transactional
+    public SimpleResponse acceptVerification(String loginName, String otpCode){
+        String response = "";
+        try {
+            User user  = User.find("login_name", loginName).firstResult();
+            if (user==null){
+                return new SimpleResponse(HttpConstant.VALIDATION_CODE, "User tidak ditemukan", new String());
+            }
+            else {
+                UserOtp userOtp = UserOtp.find("user_id = ?1", user.getUserId()).firstResult();
+                LocalDateTime updatedDateTime = userOtp.getUpdatedDateTime();
+                LocalDateTime currentDateTime = LocalDateTime.now();
+                LocalDateTime expiredDateTime = updatedDateTime.plusHours(24);
+
+                if ((userOtp.getUserOtp().toString().equalsIgnoreCase(otpCode)) & currentDateTime.isBefore(expiredDateTime)){
+                    response = "verification success";
+
+                    ObjectMapper om = new ObjectMapper();
+                    om.registerModule(new JavaTimeModule());
+                    om.setDateFormat(new SimpleDateFormat());
+
+                    user.setVerifiedStatusId(1L);
+                    user.setVerifiedStatus("verified");
+                    user.persist();
+
+                    userOtp.setUserOtp("");
+                    userOtp.persist();
+
+                    AccessManagement access = AccessManagement.find("user_id = ?1", user.getUserId()).firstResult();
+
+                    Map<String, Object> customId = new HashMap<>();
+                    customId.put("loginName", user.getLoginName());
+                    customId.put("fullName", user.getFullName());
+                    customId.put("email", user.getEmail());
+                    customId.put("phoneNumber", user.getPhoneNumber());
+                    customId.put("userCode", user.getUserCode());
+                    customId.put("userId", user.getUserId());
+                    customId.put("role", access.getRole());
+                    customId.put("roleId", access.getRoleId());
+                    customId.put("access", access.getAccess());
+                    customId.put("accessRole", access.getAccessRole());
+
+                    Consumer consumer = kongService.updateConsumer(user.getLoginName(), om.writeValueAsString(customId));
+                }
+                    
+                else {
+                    response = "verification failed";
+                }
+            }
+            
+            return new SimpleResponse(HttpConstant.SUCCESS_CODE, HttpConstant.SUCCESS, response);
+        } catch (Exception e){
+            LOGGER.error(e.getMessage());
+            // return new SimpleResponse(HttpConstant.FAILED_CODE, HttpConstant.FAILED, new String());
+            return new SimpleResponse(HttpConstant.FAILED_CODE, HttpConstant.FAILED, e);
+        }
+    }
+
+    private void sendVerification(String message){
+        stringEmitter.send(message);
     }
 }
