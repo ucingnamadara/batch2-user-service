@@ -68,9 +68,9 @@ public class UserController {
     }
 
     @GET
-    @Path("/{login_name}/verifyMe")
-    public SimpleResponse sendVerification(@PathParam("login_name")String login_name){
-        return userService.sendVerification(login_name);
+    @Path("/{login_name}/verifyUser")
+    public SimpleResponse verifyUser(@PathParam("login_name")String login_name){
+        return userService.verifyUser(login_name);
     }
 
     @GET

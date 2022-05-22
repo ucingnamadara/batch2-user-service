@@ -49,9 +49,9 @@ public class UserService {
     @Inject
     KongService kongService;
 
-    // @Inject
-    // @Channel("send-email-html")
-    // Emitter<String> stringEmitter;
+    @Inject
+    @Channel("send-email-html")
+    Emitter<String> stringEmitter;
 
     public SimpleResponse login(Object param){
         try {
@@ -288,7 +288,7 @@ public class UserService {
     }
 
     @Transactional
-    public SimpleResponse sendVerification(String loginName){
+    public SimpleResponse verifyUser(String loginName){
         String response = "";
         String otpCode = "";
         try {
@@ -342,8 +342,8 @@ public class UserService {
                     
                     String message = om.writeValueAsString(
                         EmailUtil.verifyEmailMessage(loginName, otpCode.toString(), userEmail));
-
-                    // stringEmitter.send(message);
+                    
+                    sendVerification(message);
 
                     response = "verification sent";
                 }
@@ -415,5 +415,9 @@ public class UserService {
             // return new SimpleResponse(HttpConstant.FAILED_CODE, HttpConstant.FAILED, new String());
             return new SimpleResponse(HttpConstant.FAILED_CODE, HttpConstant.FAILED, e);
         }
+    }
+
+    private void sendVerification(String message){
+        stringEmitter.send(message);
     }
 }
