@@ -34,6 +34,8 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @ApplicationScoped
 public class UserService {
@@ -119,15 +121,28 @@ public class UserService {
             if(User.count("loginName", req.getOrDefault("loginName", ""))>0){
                 return new SimpleResponse(HttpConstant.VALIDATION_CODE, "Login name sudah digunakan", new String());
             }
+            String email = (String) req.getOrDefault("email", "");
+            String phoneNumber = (String) req.getOrDefault("phoneNumber", "");
+            String idCardNumber = (String) req.getOrDefault("idCardNumber", "");
 
+            User userExisted = User.find("email = ?1 OR phone_number = ?2 OR id_card_number = ?3", email, phoneNumber, idCardNumber).firstResult();
+            if(userExisted != null){
+                return new SimpleResponse(HttpConstant.VALIDATION_CODE, "Email, phonenumber, idcard sudah digunakan", new String());
+            }
+
+            String emailRegex = "^[a-z0-9_\\-]+@[a-z\\-]+\\.[a-z\\.]+$";
+            Matcher matcher = Pattern.compile(emailRegex).matcher(email.toLowerCase());
+            if(!matcher.find()){
+                return new SimpleResponse(HttpConstant.VALIDATION_CODE, "Format Email salah", new String());
+            }
             User user = new User();
             user.setFullName((String) req.getOrDefault("fullName", ""));
             user.setNickName((String) req.getOrDefault("nickName", ""));
             user.setLoginName((String) req.getOrDefault("loginName", ""));
             user.setPassword((String) req.getOrDefault("password", ""));
-            user.setEmail((String) req.getOrDefault("email", ""));
-            user.setPhoneNumber((String) req.getOrDefault("phoneNumber", ""));
-            user.setIdCardNumber((String) req.getOrDefault("idCardNumber", ""));
+            user.setEmail(email);
+            user.setPhoneNumber(phoneNumber);
+            user.setIdCardNumber(idCardNumber);
             user.setIdCardType((String) req.getOrDefault("idCardType", ""));
             user.setIdCardTypeId(Long.parseLong(req.getOrDefault("idCardTypeId", -99L).toString()));
             user.setDateOfBirth(DateUtil.convertStringtoLocalDate(req.getOrDefault("dateOfBirth", "9999-12-28").toString()));
